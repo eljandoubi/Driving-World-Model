@@ -6,8 +6,8 @@ import torch
 import torch.nn as nn
 from torch.nn.functional import mse_loss
 
-from dataset import TensorDict
-from validate import validate_model
+from driving_world_model.dataset import TensorDict
+from driving_world_model.validate import validate_model
 
 
 class _DummyModel(nn.Module):

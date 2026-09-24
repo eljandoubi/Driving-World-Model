@@ -8,7 +8,7 @@ from datasets import IterableDataset, load_dataset
 from torchvision import transforms
 from tqdm import tqdm
 
-from logger import setup_logging
+from .logger import setup_logging
 
 
 class TensorDict(dict):
@@ -69,7 +69,8 @@ class StreamDataset:
         self.stream = deepcopy(self.main_stream)
         if self.world_size > 1:
             self.logger.info(
-                f"Sharding {self.split} dataset across {self.world_size} processes..., rank {self.rank}"
+                f"Sharding {self.split} dataset across {self.world_size} "
+                f"processes..., rank {self.rank}"
             )
             self.stream = self.stream.shard(num_shards=self.world_size, index=self.rank)
 
@@ -95,7 +96,8 @@ class StreamDataset:
         run_id = ""
         if self._counter > 0:
             self.logger.warning(
-                f"Resuming {self.split} stream from step {self.initial_step} (counter={self._counter}) for rank {self.rank}..."
+                f"Resuming {self.split} stream from step {self.initial_step} "
+                f"(counter={self._counter}) for rank {self.rank}..."
             )
         for i, it in enumerate(self.stream):
             if i < self._counter:
@@ -125,7 +127,8 @@ class StreamDataset:
         if self._len is None:
             if self._flag:
                 self.logger.warning(
-                    f"Length of {self.split} dataset not known yet for rank {self.rank}; returning estimated length {self._len_estimated}"
+                    f"Length of {self.split} dataset not known yet for rank "
+                    f"{self.rank}; returning estimated length {self._len_estimated}"
                 )
                 self._flag = False
             return max(self._len_estimated, self._counter)
@@ -133,7 +136,7 @@ class StreamDataset:
 
     def _collate_fn(self, batch: dict[str, list[torch.Tensor]]) -> TensorDict:
         collated = TensorDict()
-        for k in batch.keys():
+        for k in batch:
             collated[k] = torch.stack(batch[k], dim=0)
         return collated
 
@@ -181,13 +184,16 @@ class StreamDataset:
 
     def load_state_dict(self, state_dict: dict) -> None:
         assert state_dict["rank"] == self.rank, (
-            f"Rank mismatch: checkpoint rank {state_dict['rank']} vs current rank {self.rank}"
+            f"Rank mismatch: checkpoint rank {state_dict['rank']} "
+            f"vs current rank {self.rank}"
         )
         assert state_dict["world_size"] == self.world_size, (
-            f"World size mismatch: checkpoint world size {state_dict['world_size']} vs current world size {self.world_size}"
+            f"World size mismatch: checkpoint world size {state_dict['world_size']} "
+            f"vs current world size {self.world_size}"
         )
         assert state_dict["batch_size"] == self.batch_size, (
-            f"Batch size mismatch: checkpoint batch size {state_dict['batch_size']} vs current batch size {self.batch_size}"
+            f"Batch size mismatch: checkpoint batch size {state_dict['batch_size']} "
+            f"vs current batch size {self.batch_size}"
         )
         self._counter = state_dict["counter"]
         self._len = state_dict["len"]

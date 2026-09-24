@@ -6,7 +6,7 @@ import torch
 from torch.nn import Module
 from tqdm import tqdm
 
-from dataset import StreamDataset
+from .dataset import StreamDataset
 
 MEAN = torch.tensor([0.4738, 0.4824, 0.4592, 1.0000])
 STD = torch.tensor([0.2823, 0.2809, 0.2801, 1e-8])
@@ -29,11 +29,12 @@ def plot_video(
     save_path: str | Path = "driving_video.mp4",
     num_frames: int = 600,
     fps: int = 10,
-    device: torch.device = torch.device("cpu"),
+    device: torch.device | None = None,
     time_step: int = 25,
     num_timesteps: int = 1000,
 ) -> Path:
     model.eval()
+    device = device or torch.device("cpu")
     assert dataloader.batch_size == 1, "plot_video only supports batch_size=1 for now"
     device_type = device.type  # e.g., "cuda" or "cpu"
 

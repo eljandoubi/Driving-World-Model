@@ -2,7 +2,7 @@
 
 import torch
 
-from dataset import TensorDict
+from driving_world_model.dataset import TensorDict
 
 
 def test_tensor_dict_to_device():

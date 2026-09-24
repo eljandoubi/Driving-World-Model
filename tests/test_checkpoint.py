@@ -8,8 +8,8 @@ import torch
 from torch.optim import AdamW
 from torch.optim.lr_scheduler import CosineAnnealingWarmRestarts
 
-from checkpoint import load_checkpoint, save_checkpoint
-from early_stopping import EarlyStopping
+from driving_world_model.checkpoint import load_checkpoint, save_checkpoint
+from driving_world_model.early_stopping import EarlyStopping
 
 
 def _make_model():
@@ -107,7 +107,9 @@ def test_checkpoint_preserves_model_weights():
         optimizer2 = AdamW(model2.parameters(), lr=1e-3)
         es2 = EarlyStopping(patience=5, min_delta=0.0)
         dataset2 = _make_dataset_mock()
-        load_checkpoint(path, model2, optimizer2, None, torch.device("cpu"), es2, dataset2)
+        load_checkpoint(
+            path, model2, optimizer2, None, torch.device("cpu"), es2, dataset2
+        )
 
         assert torch.allclose(model2.weight, torch.full_like(model2.weight, 42.0))
 

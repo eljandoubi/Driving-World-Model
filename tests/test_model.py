@@ -3,7 +3,7 @@
 import pytest
 import torch
 
-from model import ActionEmbedder
+from driving_world_model.model import ActionEmbedder
 
 
 def test_action_embedder_shape():

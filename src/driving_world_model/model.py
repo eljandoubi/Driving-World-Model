@@ -72,7 +72,5 @@ class WorldModel(nn.Module):
             else:
                 t = torch.zeros((B,), dtype=torch.long, device=x_t.device)
 
-        pred_delta = self.unet(
-            sample=x_t, timestep=t, encoder_hidden_states=cond
-        ).sample
+        pred_delta = self.unet(sample=x_t, timestep=t, encoder_hidden_states=cond).sample
         return pred_delta
