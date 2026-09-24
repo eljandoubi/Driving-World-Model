@@ -5,8 +5,8 @@ from pathlib import Path
 import torch
 import torch.distributed as dist
 
-from dataset import StreamDataset
-from early_stopping import EarlyStopping
+from .dataset import StreamDataset
+from .early_stopping import EarlyStopping
 
 
 def save_checkpoint(

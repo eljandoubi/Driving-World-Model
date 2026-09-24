@@ -13,14 +13,14 @@ from torch.optim import AdamW
 from torch.optim.lr_scheduler import CosineAnnealingWarmRestarts
 from transformers import HfArgumentParser
 
-from checkpoint import load_checkpoint, save_checkpoint
-from config import TrainingConfig
-from dataset import StreamDataset
-from early_stopping import EarlyStopping
-from logger import setup_logging
-from model import WorldModel
-from plot import plot_video
-from validate import tqdm, validate_model
+from .checkpoint import load_checkpoint, save_checkpoint
+from .config import TrainingConfig
+from .dataset import StreamDataset
+from .early_stopping import EarlyStopping
+from .logger import setup_logging
+from .model import WorldModel
+from .plot import plot_video
+from .validate import tqdm, validate_model
 
 torch.set_float32_matmul_precision("high")
 
@@ -95,7 +95,8 @@ def main(
             else:
                 batch_size = config.batch_size
                 if k != "train":
-                    batch_size *= 4  # use larger batch size for validation and test to speed up evaluation
+                    # larger batch size for validation/test speeds up evaluation
+                    batch_size *= 4
                 buffer_size = config.buffer_size
             key = f"{prefix}_{k}" if prefix else k
 
@@ -261,8 +262,7 @@ def main(
                         video_path = plot_video(
                             compiled_raw_model,  # pyright: ignore[reportArgumentType]
                             dataloaders["video_validation"].reset_stream(),
-                            save_path=config.plot_dir
-                            / f"driving_video_step_{step}.mp4",
+                            save_path=config.plot_dir / f"driving_video_step_{step}.mp4",
                             device=device,
                             time_step=config.plot_time_step,
                             num_timesteps=num_timesteps,
@@ -299,7 +299,8 @@ def main(
                 if early_stopping.step(val_loss):
                     if is_main:
                         logger.info(
-                            f"Early stopping at step {step} with validation loss {val_loss:.4f}"
+                            f"Early stopping at step {step} "
+                            f"with validation loss {val_loss:.4f}"
                         )
                     stopped = True
 
@@ -366,11 +367,7 @@ def main(
             num_timesteps=model.num_timesteps,
         )
         wandb.log(
-            {
-                "video/final_prediction": wandb.Video(
-                    str(final_video_path), format="mp4"
-                )
-            },
+            {"video/final_prediction": wandb.Video(str(final_video_path), format="mp4")},
         )
 
         wandb.finish()
@@ -380,10 +377,13 @@ if __name__ == "__main__":
     parser = HfArgumentParser(TrainingConfig)  # pyright: ignore[reportArgumentType]
     config = parser.parse_args_into_dataclasses()[0]
 
-    # Ensure the user is launching the script via torchrun (launch.sh)
+    # Ensure the user is launching the script via torchrun
     if "LOCAL_RANK" not in os.environ:
-        print("❌ ERROR: You must launch this script using torchrun or launch.sh!")
-        print("Run it locally like this: uv run torchrun --nproc_per_node=1 train.py")
+        print("❌ ERROR: You must launch this script using torchrun!")
+        print(
+            "Run it locally like this: "
+            "uv run torchrun --nproc_per_node=1 -m driving_world_model.train"
+        )
         exit(1)
 
     # Read the ground-truth topology that torchrun generated

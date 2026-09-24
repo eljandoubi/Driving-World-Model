@@ -2,7 +2,7 @@
 
 import logging
 
-from logger import TqdmLoggingHandler, setup_logging
+from driving_world_model.logger import TqdmLoggingHandler, setup_logging
 
 
 def test_setup_logging_returns_logger():
@@ -11,7 +11,7 @@ def test_setup_logging_returns_logger():
 
 
 def test_rank_zero_has_handler():
-    logger = setup_logging(rank=0)
+    setup_logging(rank=0)
     root = logging.getLogger()
     assert any(isinstance(h, TqdmLoggingHandler) for h in root.handlers)
 

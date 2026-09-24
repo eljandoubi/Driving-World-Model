@@ -1,6 +1,25 @@
 # Driving World Model
 
+[![CI](https://github.com/eljandoubi/driving-world-model/actions/workflows/ci.yml/badge.svg)](https://github.com/eljandoubi/driving-world-model/actions/workflows/ci.yml)
+[![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue)](https://www.python.org/)
+[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
+[![uv](https://img.shields.io/badge/package%20manager-uv-purple)](https://github.com/astral-sh/uv)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
+
 A world model for autonomous driving that learns to predict the next visual observation given the current frame and a driving action. The model is designed for hyperparameter tuning — all training parameters are exposed as CLI flags, making it straightforward to run sweeps with tools like W&B Sweeps, Optuna, or grid search scripts.
+
+## Table of Contents
+
+- [Motivation](#motivation)
+- [Architecture](#architecture)
+- [Dataset](#dataset)
+- [Installation](#installation)
+- [Training](#training)
+- [Default Configuration](#default-configuration)
+- [Hyperparameter Tuning](#hyperparameter-tuning)
+- [Development](#development)
+- [Project Structure](#project-structure)
+- [License](#license)
 
 ## Motivation
 
@@ -22,69 +41,70 @@ Uses the [CARLA Autopilot Multimodal Dataset](https://huggingface.co/datasets/im
 
 ## Installation
 
+Requires [uv](https://github.com/astral-sh/uv) and Python 3.12+.
+
 ```bash
-uv sync            # production deps
-uv sync --group dev  # + pytest for testing
+uv sync                 # production dependencies
+uv sync --group dev     # + ruff, pytest, pytest-cov for development
 ```
+
+The project installs as the `driving_world_model` package (src layout), so every module is imported as `driving_world_model.<module>` and every entry point is run with `python -m driving_world_model.<module>`.
 
 ## Training
 
+`train.py` always launches through `torchrun` — even for a single process — since it reads its rank/world-size from the environment `torchrun` sets up (`LOCAL_RANK`, `RANK`, `WORLD_SIZE`).
+
 ```bash
-uv run python train.py [OPTIONS]
+uv run torchrun --nproc_per_node=1 -m driving_world_model.train [OPTIONS]
+```
+
+or, equivalently:
+
+```bash
+just train [OPTIONS]
 ```
 
 All fields in `TrainingConfig` are valid CLI flags (via HuggingFace `HfArgumentParser`). This makes it trivial to run hyperparameter sweeps:
 
 ```bash
 # Example: sweep over learning rate and scheduler
-uv run python train.py --learning_rate 3e-4 --scheduler_t0 5 --scheduler_t_mult 1
-uv run python train.py --learning_rate 1e-4 --scheduler_t0 20 --scheduler_t_mult 2
+uv run torchrun --nproc_per_node=1 -m driving_world_model.train --learning_rate 3e-4 --scheduler_t0 5 --scheduler_t_mult 1
+uv run torchrun --nproc_per_node=1 -m driving_world_model.train --learning_rate 1e-4 --scheduler_t0 20 --scheduler_t_mult 2
 ```
 
 ### Resume from checkpoint
 
 ```bash
-uv run python train.py --resume runs/<run_id>/checkpoints/best_checkpoint.pt --run_id <run_id>
+uv run torchrun --nproc_per_node=1 -m driving_world_model.train \
+    --resume runs/<run_id>/checkpoints/best_checkpoint.pt --run_id <run_id>
 ```
 
 ### Distributed Training
 
 Training supports DistributedDataParallel (DDP) for multi-GPU and multi-node setups. Data is sharded across ranks, gradients are synchronized automatically, and only rank 0 handles logging, checkpointing, and video generation.
 
+`torchrun` is the only supported launcher — it owns rank/world-size assignment via environment variables, so the config's `--n_gpus`/`--n_nodes` flags don't launch anything by themselves. Set them to match the topology you pass to `torchrun` so `log_every`/`checkpoint_every` are scaled correctly for the true global batch size.
+
 #### Single-node multi-GPU
 
 ```bash
-uv run python train.py --n_gpus 4
+uv run torchrun --nproc_per_node=4 -m driving_world_model.train --n_gpus 4
 ```
-
-This uses `mp.spawn` to launch one process per GPU on the local machine.
 
 #### Multi-node
 
-Each machine runs the script independently. Set `MASTER_ADDR` to the IP of node 0 so all nodes can rendezvous.
+Each machine runs `torchrun` independently. `--node_rank` is a `torchrun` flag (not a `TrainingConfig` field), and `--master_addr` should point to node 0 so all nodes can rendezvous.
 
 ```bash
 # Node 0 (master):
-MASTER_ADDR=10.0.0.1 MASTER_PORT=12355 uv run python train.py \
-    --n_gpus 4 --n_nodes 2 --node_rank 0
+uv run torchrun --nproc_per_node=4 --nnodes=2 --node_rank=0 \
+    --master_addr=10.0.0.1 --master_port=12355 \
+    -m driving_world_model.train --n_gpus 4 --n_nodes 2
 
 # Node 1:
-MASTER_ADDR=10.0.0.1 MASTER_PORT=12355 uv run python train.py \
-    --n_gpus 4 --n_nodes 2 --node_rank 1
-```
-
-#### Multi-node with `torchrun`
-
-`torchrun` handles rendezvous and environment variables automatically. When `LOCAL_RANK` is detected in the environment, the script reads rank/world-size from `torchrun` instead of the CLI flags.
-
-```bash
-# Node 0:
-torchrun --nproc_per_node=4 --nnodes=2 --node_rank=0 \
-    --master_addr=10.0.0.1 --master_port=12355 train.py
-
-# Node 1:
-torchrun --nproc_per_node=4 --nnodes=2 --node_rank=1 \
-    --master_addr=10.0.0.1 --master_port=12355 train.py
+uv run torchrun --nproc_per_node=4 --nnodes=2 --node_rank=1 \
+    --master_addr=10.0.0.1 --master_port=12355 \
+    -m driving_world_model.train --n_gpus 4 --n_nodes 2
 ```
 
 ## Default Configuration
@@ -159,28 +179,43 @@ Key parameters to sweep:
 
 All parameters are logged to W&B automatically, enabling comparison across runs.
 
-## Testing
+## Development
+
+This project uses [uv](https://github.com/astral-sh/uv) for dependency management, [Ruff](https://github.com/astral-sh/ruff) for linting/formatting, and [pytest](https://docs.pytest.org/) for testing. A [`justfile`](justfile) wraps the common commands — run `just` to list them all:
 
 ```bash
-uv run pytest tests/ -v
+just install       # uv sync --group dev
+just test          # run the test suite
+just coverage      # run tests with a coverage report
+just lint          # ruff check
+just format        # ruff format
+just check         # lint + format-check + test (what CI runs)
 ```
+
+Without `just`, the equivalent `uv run` commands work the same way, e.g. `uv run pytest tests/ -v`.
+
+Every push and pull request to `main` runs the [CI workflow](.github/workflows/ci.yml), which lints, format-checks, and tests the project on Python 3.12.
 
 ## Project Structure
 
 ```
-├── model.py            # WorldModel + ActionEmbedder
-├── train.py            # Training loop with scheduler, early stopping, checkpointing
-├── validate.py         # Validation/test evaluation
-├── dataset.py          # Streaming dataset from HuggingFace
-├── config.py           # TrainingConfig dataclass (all hyperparameters)
-├── checkpoint.py       # Save/load checkpoints
-├── early_stopping.py   # EarlyStopping utility
-├── logger.py           # Rank-aware logging with tqdm integration
-├── plot.py             # Video generation for prediction visualization
-├── tests/              # Unit tests
-└── pyproject.toml      # Dependencies & config
+├── src/
+│   └── driving_world_model/
+│       ├── model.py            # WorldModel + ActionEmbedder
+│       ├── train.py            # Training loop with scheduler, early stopping, checkpointing
+│       ├── validate.py         # Validation/test evaluation
+│       ├── dataset.py          # Streaming dataset from HuggingFace
+│       ├── config.py           # TrainingConfig dataclass (all hyperparameters)
+│       ├── checkpoint.py       # Save/load checkpoints
+│       ├── early_stopping.py   # EarlyStopping utility
+│       ├── logger.py           # Rank-aware logging with tqdm integration
+│       └── plot.py             # Video generation for prediction visualization
+├── tests/                      # Unit tests (mirrors src/driving_world_model)
+├── .github/workflows/ci.yml    # Lint + test CI pipeline
+├── justfile                    # Dev task runner (install, test, lint, format, train)
+└── pyproject.toml              # Dependencies, build system & tool config
 ```
 
 ## License
 
-See [LICENSE](LICENSE).
+Licensed under the [Apache License 2.0](LICENSE).
