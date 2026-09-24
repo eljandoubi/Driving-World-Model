@@ -4,7 +4,7 @@ import logging
 
 import pytest
 
-from early_stopping import EarlyStopping
+from driving_world_model.early_stopping import EarlyStopping
 
 
 def test_no_stop_when_improving():
