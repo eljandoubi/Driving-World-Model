@@ -379,7 +379,7 @@ if __name__ == "__main__":
 
     # Ensure the user is launching the script via torchrun
     if "LOCAL_RANK" not in os.environ:
-        print("❌ ERROR: You must launch this script using torchrun!")
+        print("ERROR: You must launch this script using torchrun!")
         print(
             "Run it locally like this: "
             "uv run torchrun --nproc_per_node=1 -m driving_world_model.train"
@@ -392,7 +392,7 @@ if __name__ == "__main__":
     world_size = int(os.environ["WORLD_SIZE"])
 
     if global_rank == 0:
-        print(f"🚀 torchrun initialized with world_size={world_size}")
+        print(f"torchrun initialized with world_size={world_size}")
 
     # Start training!
     main(local_rank, global_rank, world_size, config)
